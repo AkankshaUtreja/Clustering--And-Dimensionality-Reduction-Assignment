@@ -1,0 +1,334 @@
+---
+title: "Assignment- Clustering"
+author: "Akanksha Utreja(11910056)"
+date: "July 6, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Individual Assignment 1
+
+1. Marketing to Frequent Fliers. The file EastWestAirlinesCluster.xls (available on the textbook website http://dataminingbook.com/) contains information on 4,000 passengers who belong to an airline's frequent flier program. For each passenger, the data include information on their mileage history and on different ways they accrued or spent miles in the last year. The goal is to try to identify clusters of passengers that have similar characteristics for the purpose of targeting different segments for different types of mileage offers. 
+
+a) Do you need to normalize the data before applying any clustering technique? Why or why not?
+
+Ans. Yes, we need to normalize the data before applying any clustering algorithm because we have miles, days and cc_miles (categorical data). Since, they have different measurement units and Euclidean distance is determined by the scale of different measurements so to remove any bias in the Euclidean distance, we need to standardize it.
+
+
+b) Apply hierarchical clustering with Euclidean distance and Ward's method. How many clusters do appear? 
+
+In the below dendogram, if we cut at 120 then we get 2 custers. If we cut at 100, then we get 3 clusters so it is dependent on the business problem how many clusters are ideal.
+
+```{r b part}
+## Libraries
+library("dummies")
+library("dendextend")
+library("gridExtra")
+library("cluster")
+library("factoextra")
+library("MASS")
+library("fpc")
+
+#Setting the working directory,
+
+setwd('C:/Users/AKANKSHA/Desktop/ISB CBA/Data Mining')
+
+#Reading the second sheet of EastWestAirlinesCluster,
+input     <- read.csv("EastWestAirlinesCluster.csv",header=TRUE)
+
+#Excluding the ID column,
+datawonormal  <- input[,2:11]
+
+# Normalising the data before applying Clustering to give equal importance to all attributes,
+
+#1. Normalizing the categorical data by conevrting to dummy variables,
+
+normalized_data    <- dummy.data.frame(datawonormal, names = "cc1_miles", omit.constants=FALSE )
+normalized_data    <- dummy.data.frame(datawonormal, names = "cc2_miles", omit.constants=FALSE )
+normalized_data    <- dummy.data.frame(datawonormal, names = "cc3_miles", omit.constants=FALSE )
+
+# Standardizing data,
+normalized_data   <- scale(normalized_data)
+
+#Applying the approach of Euclidean distance and Ward's method,
+
+d<- dist(normalized_data, method = "euclidean")
+
+# Hierarchical clustering using Ward's method
+fit<- hclust(d, method = "ward.D2" )
+plot(fit)
+rect.hclust(fit, k=2, border="red")
+rect.hclust(fit, k=3, border="green")
+```
+
+
+
+c) Compare cluster centroids to characterize different clusters and try to give each cluster a label-a meaningful name that characterizes the cluster.  
+
+```{R c part}
+# Cutting into 3 clusters and viewing the clusters,
+
+groups <- cutree(fit, k=3) # cut tree into 3 clusters
+membership<-as.matrix(groups)
+#membership
+cluster1 <- subset(input,membership[,1]==1)
+#cluster1 
+cluster2 <- subset(input,membership[,1]==2)
+#cluster2 
+cluster3 <- subset(input,membership[,1]==3)
+#cluster3 
+
+#Looking at how the summary looks like,
+summary(cluster3)
+
+
+# Comparing the centroids,
+
+d <- dist(normalized_data, method = "euclidean") 
+fit <- hclust(d, method="complete")
+
+groups <- cutree(fit, k=3)
+
+findcenteroid = function(i, dat, groups) {
+  ind = (groups == i)
+  colMeans(dat[ind,])
+}
+sapply(unique(groups), findcenteroid, datawonormal, groups)
+```
+
+
+Chracterizing the above,
+
+#Cluster 1- Medium class fliers or Economy class fliers
+
+Since most of the attribues are the average of the cluster 2 and cluster 3.
+
+#Cluster 2- High Class Loyal Fliers
+
+All the measures for this cluster are higher in comparison to the other two clusters.
+
+#Cluster 3- Non Frequent Travellers
+
+As can be seen, they score very poorly on all the variables.
+
+
+d) To check the stability of clusters, remove a random 5% of the data (by taking a random sample of 95% of the records), and repeat the analysis. Does the same picture emerge?
+
+```{R part d}
+OriginalDend   <- as.dendrogram(fit)
+
+#Random Sample1 with 95% of data
+input_sample=input[sample(nrow(datawonormal),replace=F,size=0.95*nrow(input)),]
+
+d       <- dist(input_sample, method = "euclidean")
+fit2 <- hclust(d, method = "ward.D2" )
+SampledDendo   <- as.dendrogram(fit2)
+
+
+## Viewing the dendograms to see how they are similar or different,
+OriginalDend
+SampledDendo
+
+plot(OriginalDend)
+
+plot(SampledDendo)
+
+```
+
+* From the above we can see that the clusters formed after sampling are different.
+
+e) Cluster all passengers again using k-means clustering. How many clusters do you want to go with? How did you decide on the number of clusters? Explain your choice on the number of clusters.
+
+```{r}
+
+## Determine number of clusters
+Cluster_Variability <- matrix(nrow=7, ncol=1)
+for (i in 1:7) Cluster_Variability[i] <- kmeans(normalized_data,centers=i, nstart=6)$tot.withinss
+plot(1:7, Cluster_Variability, type="b", xlab="Number of clusters", ylab="Within groups sum of squares") ## Elbow curve or Scree plot
+
+```
+
+* From the above, we can see that the elbow bend is at 3. So, 3 number of clusters should be taken.
+After 3 the tot.withinss remains same for some time that means at 3, it is a minima, which is ultimately our objective since k-means is a minimization problem.
+
+Clustering all the passeners using k means now,
+
+```{r}
+
+fit_kmeans <- kmeans(normalized_data, centers=3, iter.max=10, nstart=4)
+fit_kmeans$centers
+
+```
+
+f) How do the characteristics of the clusters, obtained in Part (e), contrast or validate the finding in Part c above?
+
+```{r}
+
+sapply(unique(groups), findcenteroid, datawonormal, groups)
+
+
+```
+
+```{r}
+fit2 <- kmeans(datawonormal, centers=3, iter.max=10)
+fit2$centers
+
+```
+
+From the above we can say that both the clustering algorithms are providing different results.
+
+
+g) Which cluster(s) would you target for offers, and what type of offers would you target to customers in that cluster? Include proper reasoning in support of your choice of the cluster(s) and the corresponding offer(s)
+
+```{r}
+fit2$size
+
+```
+From the above we can say that we have more people in Cluster 1 and 3 so we should be targetting those clusters.
+For Cluster 3, we should offer better discounts like more bonus miles so that they keep using our services.
+For Cluster 1, we should try and retain these customers by offering cheap deals and more Bonus miles.
+
+# Wine Data Analysis
+
+Step 1: Download the Wine data from the UCI machine learning repository.
+
+Step 2: Do a Principal Components Analysis (PCA) on the data. Please include (copy-paste) the relevant software outputs in your submission while answering the following questions. 
+
+a. Enumerate the insights you gathered during your PCA exercise. Please do not clutter your report with too many insignificant insights as it will dilute the value of your other significant findings. 
+
+```{r}
+
+setwd('C:/Users/AKANKSHA/Desktop/ISB CBA/Data Mining')
+## Principal Component Analysis
+
+input <- read.csv('C:\\Users\\AKANKSHA\\Desktop\\ISB CBA\\Data Mining\\wine.data', header = TRUE,row.names=NULL)
+winedata   <- input[1:178,2:14]
+winepca <- princomp(na.omit(winedata), cor = TRUE, scores = TRUE, covmat = NULL)
+summary(winepca)
+
+```
+
+```{r}
+
+plot(winepca)
+
+```
+
+#Insights
+
+From we can see from the summary statstics that almost 80% of the data can be captured up till column 5.
+
+We can also see from the barplot that the variances are high upto 5 components.
+So, from the above we can say that 5 components should be taken for the analysis.
+
+b. What are the social and/or business values of those insights, and how the value of those insights can be harnessed???enumerate actionable recommendations for the identified stakeholder in this analysis?
+
+```{r}
+summary(winepca, loading = TRUE) 
+#loadings(winepca)
+```
+
+In general, if the correlation value is near to or greater than 0.5 then it is considered important and worth considering.
+
+From the above we can see that Comp3 is negatively correlated with Ash and Alcainilty.This is not good for health. Comp 4 is negatively correlated with Malic Acid.
+Comp1 is positively correlated with Flavanoids and OD280/OD315 values. This is good for health. Comp2 is positively related with Alcohol and Color intensity etc. Hence, it is bad for health.
+
+
+Step 3: Do a cluster analysis you may try different algorithms or approaches and go with the one that you find most appropriate using (i) all chemical measurements (ii) using two most significant PC scores. 
+
+c. Any more insights you come across during the clustering exercise?
+
+Appying k-means algorithm on the dataset, first we will decide what should be the ideal number of clusters with the help of the plot.
+
+```{r}
+
+normalized_data <- scale(winedata)
+Cluster_Variab <- matrix(nrow=8, ncol=1)
+for (i in 1:8) Cluster_Variab[i] <- kmeans(normalized_data, centers=i)$tot.withinss
+plot(1:8, Cluster_Variab, type="b", xlab="Number of clusters", ylab="Within groups sum of squares")
+
+```
+
+
+So, from the above 3 seems like a feasible solution, applying k-means with 3 clusters.
+
+```{r}
+fitwine <- kmeans(normalized_data, centers=3, iter.max=10)
+
+fitwine$size
+fitwine$centers
+t(fitwine$centers)
+```
+
+From the above, we can say in Cluster 1, although the content of Phenols and Flavanoids is high but it also has high alcohol content so it is bad for the health.
+For Cluster 2, it has very low alcohol but the rest of the components are also less so it is safer for consumption.
+For Cluster 3,also has low alcohol content ad high Malic acid etc hence it is safe for consumption.
+
+-> Now, let's plot the centers to get a better picture of what's happening.
+
+```{r}
+library(MASS)
+parcoord(fitwine$centers, c('blue', 'red', 'green'))
+
+```
+
+The above are plotted for Cluster 1, 2 and 3 and as we saw that Cluster 1 is the blue , Cluster 2 is the red and Cluster 3 is the green. It shows that Cluster 1 and 2 i.e Blue and Red clusters have greater presence than Cluster 3. 
+
+d. Are there clearly separable clusters of wines? How many clusters did you go with? How the clusters obtained in part (i) are different from or similar to clusters obtained in part (ii), qualitatively
+
+```{r}
+
+library("fpc")
+plotcluster(normalized_data, fitwine$cluster)
+
+```
+
+From the above plot, we can say that they are seperable in 3 clusters. The results are decided using the fpc library and plotting clusters.
+
+e. Could you suggest a subset of the chemical measurements that can separate wines more distinctly? How did you go about choosing that subset? How do the rest of the measurements that were not included while clustering, vary across those clusters?
+
+Ans.
+-->Subset of Chemical measurements that seperate wines more distinctly:
+
+The measurements which have higher variance help in sepearting the wine more distinctly. In our case,  Alchohol, Magnesium, Flavanoids, Color_Intensity, Hue, OD280_OD315 and Proline will help in seperatig the wines more distinctly.
+
+-->How did you choose the subset?
+Based on the variation, PCA and k-means we can identify the subset.
+
+-->How do the rest of the measurements that were not included while clustering, vary across those clusters?
+
+The rest of the measurements are mostly constant across the cluster.
+
+#Refrences
+
+1.Data Mining Book 
+https://mineracaodedados.files.wordpress.com/2012/07/data-mining-in-excel.pdf
+
+2.Nice Plots 
+http://www.r-bloggers.com/using-r-to-replicate-common-spss-multiple-regression-output/
+
+3.K-Means
+https://en.wikipedia.org/wiki/K-means_clustering
+
+4.Dendogarms 
+https://cran.r-project.org/web/packages/dendextend/vignettes/introduction.html
+
+5.PCA
+https://cran.r-project.org/web/packages/HSAUR/vignettes/Ch_principal_components_analysis.pdf
+
+
+
+
+
+
+
+
+
+
+
+
+
+
